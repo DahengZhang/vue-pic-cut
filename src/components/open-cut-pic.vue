@@ -26,45 +26,46 @@ export default {
         };
     },
     async mounted() {
+        // 获取外层容器尺寸
         this.wrapperSize = this.$refs.wrapper.getBoundingClientRect();
+        // 加载需要裁剪的图片
         this.imageSize = await this._loadImage(this.src);
+        // 创建图片dom
         this.imgEl = this._createImage(this.src);
+        // 将图片加载到页面中
         this.$refs.wrapper.appendChild(this.imgEl);
+        // 适配图片
         this._fitImage();
     },
     methods: {
         rotate(angle) {
             this.imgEl.style.transform = `rotate(${this._getRotate(this.imgEl) + angle}deg)`;
-            this.tF();
-        },
-        tF() {
-            const isRotate = Math.abs(this._getRotate(this.imgEl) / 90) === 1;
-
-            const wrapperScale = this.wrapperSize.width / this.wrapperSize.height;
-            const imgScale = isRotate ? 
-                this.imgEl.height / this.imgEl.width : 
-                this.imgEl.width / this.imgEl.height;
-            console.log(wrapperScale < imgScale ? '水平布局' : '竖直布局')
+            this._fitImage();
         },
         _fitImage() {
-            const wrapperScale = this.wrapperSize.width / this.wrapperSize.height;
+            const wrapperScale = this.wrapperSize.width / this.wrapperSize.height; // 外层容器比例
             const imgScale = this.imgEl.width / this.imgEl.height;
             wrapperScale < imgScale ? this._horizontal() : this._vertical();
         },
-        _horizontal() { // 水平布局
-            console.log('---_horizontal')
+        _horizontal() { // 初始时为水平布局
+            console.log('---_horizontal:初始时为水平布局')
 
-            this.imgEl.style.width = this._getWdith(false) + 'px';
+            const isRotate = Math.abs(this._getRotate(this.imgEl) / 90) === 1;
+            const width = isRotate ? this.wrapperSize.height : this.wrapperSize.width;
+            this.imgEl.style.width = width + 'px';
             const top = (this.wrapperSize.height - this.imgEl.height) / 2;
             this.imgEl.style.top = top + 'px';
         },
-        _vertical(size) { // 竖直布局
-            console.log('---_vertical')
+        _vertical() { // 初始时为竖直布局
+            console.log('---_vertical:初始时为竖直布局')
 
-            const width = this.wrapperSize.height * this.imgEl.width / this.imgEl.height;
+            const isRotate = Math.abs(this._getRotate(this.imgEl) / 90) === 1;
+            const width = isRotate ? this.imgEl.width * this.wrapperSize.width / this.imgEl.height : this.wrapperSize.height * this.imgEl.width / this.imgEl.height;
             this.imgEl.style.width = width + 'px';
             const left = (this.wrapperSize.width - this.imgEl.width) / 2;
             this.imgEl.style.left = left + 'px';
+            const top = (this.wrapperSize.height - this.imgEl.height) / 2;
+            this.imgEl.style.top = top + 'px';
         }
     }
 };
