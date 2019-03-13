@@ -69,7 +69,7 @@ export default {
     }
 };
 </script>
-
+ 
 <style lang="less">
 .component-open-cut-pic {
     background-color: #b4b7bf;
