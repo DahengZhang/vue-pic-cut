@@ -17,14 +17,6 @@ export default {
             this._addClass(imgEl, 'cut-pic-el');
             return imgEl;
         },
-        _getRotate(el) {
-            const transform = window.getComputedStyle(el, null).getPropertyValue('transform');
-            if (transform === 'none') {
-                return 0;
-            }
-            const transformValue = transform.split('(')[1].split(')')[0].split(',');
-            return Math.round(Math.atan2(transformValue[1], transformValue[0]) * (180 / Math.PI))
-        },
         _getWdith(isVertical) {
             const isRotate = Math.abs(this._getRotate(this.imgEl) / 90) === 1;
             if (isVertical) {

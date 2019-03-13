@@ -26,6 +26,14 @@ export default {
             classList = classList && classList.split(' ') || [];
             classList.splice(classList.indexOf(className), 1);
             el.setAttribute('class', classList.join(' '));
+        },
+        _getRotate(el) {
+            const transform = window.getComputedStyle(el, null).getPropertyValue('transform');
+            if (transform === 'none') {
+                return 0;
+            }
+            const transformValue = transform.split('(')[1].split(')')[0].split(',');
+            return Math.round(Math.atan2(transformValue[1], transformValue[0]) * (180 / Math.PI))
         }
     }
 };
