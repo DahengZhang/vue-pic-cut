@@ -1,6 +1,10 @@
 <template>
     <div class="component-open-cut-pic-frame" ref="frameContainer"
         :style="{'width': `${width}px`, 'height': `${height}px`, 'min-width': `${minWdith}px`, 'min-height': `${minHeight}px`}">
+        <div class="frame-mask top-mask"></div>
+        <div class="frame-mask right-mask"></div>
+        <div class="frame-mask bottom-mask"></div>
+        <div class="frame-mask left-mask"></div>
         <div class="frame-contact top-left-contact"></div>
         <div class="frame-contact top-right-contact"></div>
         <div class="frame-contact bottom-right-contact"></div>
@@ -22,6 +26,17 @@ export default {
         height: {
             type: Number,
             required: true
+        },
+        limit: {
+            type: Object,
+            default: () => {
+                return {
+                    top: 0,
+                    left: 0,
+                    width: 0,
+                    height: 0
+                }
+            }
         }
     },
     computed: {
@@ -44,8 +59,8 @@ export default {
     },
     data() {
         return {
-            oldSize: {},
             oldPosition: {},
+            oldFrameRect: {},
             clickPosition: {},
             touchPoint: null,
             touchFuc: null
@@ -54,7 +69,8 @@ export default {
     mounted() {
         this.$refs.frameContainer.addEventListener('mousedown', e => {
             e.stopPropagation();
-            this.oldSize = this.$refs.frameContainer.getBoundingClientRect();
+            this.oldFrameRect = this.$refs.frameContainer.getBoundingClientRect();
+            console.log(this.oldFrameRect)
             this.oldPosition.top = e.clientY;
             this.oldPosition.left = e.clientX;
             // 触点相对于被点击元素的位置
@@ -88,47 +104,137 @@ export default {
             // 当前出点相对于页面的坐标，加上浏览器滚动条滚动的距离，减去限制组建相对于页面的位置，减去触点相对于被点击元素的位置
             const top = e.clientY + document.documentElement.scrollTop - this.$parent.$el.offsetTop - this.clickPosition.top;
             const left = e.clientX + document.documentElement.scrollLeft - this.$parent.$el.offsetLeft - this.clickPosition.left;
-            return {top, left}
+            return {top, left};
+        },
+        _correctPosition(el) {
+            const position = el.getBoundingClientRect();
+            const top = position.top + document.documentElement.scrollTop - this.$parent.$el.offsetTop;
+            const left = position.left + document.documentElement.scrollLeft - this.$parent.$el.offsetLeft;
+            return {top, left};
         },
         _positionFrame(e) {
             const {top, left} = this._getPosition(e);
+
+            const {needCorrect, correctedData} = this._positionCorrect(top, left, this.oldFrameRect.width, this.oldFrameRect.height);
+
+            if (needCorrect) {
+                this.$refs.frameContainer.style.top = correctedData.top + 'px';
+                this.$refs.frameContainer.style.left = correctedData.left + 'px';
+                return;
+            }
+
             this.$refs.frameContainer.style.top = top + 'px';
             this.$refs.frameContainer.style.left = left + 'px';
         },
         _topLeft(e) {
-            const width = this.oldSize.width + this.oldPosition.left - e.clientX;
+            let top = this._getPosition(e).top;
+            let left = this._getPosition(e).left;
+            let width = this.oldFrameRect.width + this.oldPosition.left - e.clientX;
+            let height = this.oldFrameRect.height + this.oldPosition.top - e.clientY;
+
+            const {needCorrect, correctedData} = this._sizeCorrect(
+                                                    this._correctPosition(this.$refs.frameContainer).top,
+                                                    this._correctPosition(this.$refs.frameContainer).left,
+                                                    width, height
+                                                );
+
+            if (needCorrect) {
+                top = correctedData.top;
+                left = correctedData.left;
+                width = correctedData.width;
+                height = correctedData.height;
+            }
+
             if (width >= this.minWdith) {
                 this.$refs.frameContainer.style.width = width + 'px';
-                this.$refs.frameContainer.style.left = this._getPosition(e).left + 'px';
+                this.$refs.frameContainer.style.left = left + 'px';
             }
             
-            const height = this.oldSize.height + this.oldPosition.top - e.clientY;
             if (height >= this.minHeight) {
                 this.$refs.frameContainer.style.height = height + 'px';
-                this.$refs.frameContainer.style.top = this._getPosition(e).top + 'px';
+                this.$refs.frameContainer.style.top = top + 'px';
             }
         },
         _topRight(e) {
-            this.$refs.frameContainer.style.width = this.oldSize.width + e.clientX - this.oldPosition.left + 'px';
+            this.$refs.frameContainer.style.width = this.oldFrameRect.width + e.clientX - this.oldPosition.left + 'px';
 
-            const height = this.oldSize.height + this.oldPosition.top - e.clientY;
+            const height = this.oldFrameRect.height + this.oldPosition.top - e.clientY;
             if (height >= this.minHeight) {
                 this.$refs.frameContainer.style.height = height + 'px';
                 this.$refs.frameContainer.style.top = this._getPosition(e).top + 'px';
             }
         },
         _bottomRight(e) {
-            this.$refs.frameContainer.style.width = this.oldSize.width + e.clientX - this.oldPosition.left + 'px';
-            this.$refs.frameContainer.style.height = this.oldSize.height + e.clientY - this.oldPosition.top + 'px';
+            let width = this.oldFrameRect.width + e.clientX - this.oldPosition.left;
+            let height = this.oldFrameRect.height + e.clientY - this.oldPosition.top;
+            
+            const {needCorrect, correctedData} = this._sizeCorrect(
+                                                    this._correctPosition(this.$refs.frameContainer).top,
+                                                    this._correctPosition(this.$refs.frameContainer).left,
+                                                    width, height
+                                                );
+            if (needCorrect) {
+                width = correctedData.width;
+                height = correctedData.height;
+            }
+
+            this.$refs.frameContainer.style.width = (width > this.minWdith ? width : this.minWdith) + 'px';
+            this.$refs.frameContainer.style.height = (height > this.minHeight ? height : this.minHeight) + 'px';
         },
         _bottomLeft(e) {
-            this.$refs.frameContainer.style.height = this.oldSize.height + e.clientY - this.oldPosition.top + 'px';
+            this.$refs.frameContainer.style.height = this.oldFrameRect.height + e.clientY - this.oldPosition.top + 'px';
 
-            const width = this.oldSize.width + this.oldPosition.left - e.clientX;
+            const width = this.oldFrameRect.width + this.oldPosition.left - e.clientX;
             if (width >= this.minWdith) {
                 this.$refs.frameContainer.style.width = (width >= this.minWdith ? width : this.minWdith) + 'px';
                 this.$refs.frameContainer.style.left = this._getPosition(e).left + 'px';
             }
+        },
+        _positionCorrect(top, left, width, height) {
+            let needCorrect = false;
+            let correctedData = {
+                left, top, width, height
+            }
+
+            if (this.limit.top > top) { // 上方边界矫正
+                needCorrect = true;
+                correctedData.top = this.limit.top;
+            }
+            if (this.limit.left > left) { // 左侧边界矫正
+                needCorrect = true;
+                correctedData.left = this.limit.left;
+            }
+            if (this.limit.left + this.limit.width < left + width) { // 右侧边界矫正
+                needCorrect = true;
+                correctedData.left = this.limit.width + this.limit.left - width;
+            }
+            if (this.limit.top + this.limit.height < top + height) { // 底侧边界矫正
+                needCorrect = true;
+                correctedData.top = this.limit.height + this.limit.top - height;
+            }
+
+            return {needCorrect, correctedData};
+        },
+        _sizeCorrect(top, left, width, height) {
+            let needCorrect = false;
+            let correctedData = {
+                top, left, width, height
+            }
+
+            if (this.limit.top > top) {
+                needCorrect = true;
+                correctedData.top = this.limit.top;
+            }
+            if (this.limit.left + this.limit.width < left + width) { // 右侧边界矫正
+                needCorrect = true;
+                correctedData.width = this.limit.width - left;
+            }
+            if (this.limit.height < top + height - this.limit.top) { // 底侧边界矫正
+                needCorrect = true;
+                correctedData.height = this.limit.height - top + this.limit.top;
+            }
+
+            return {needCorrect, correctedData};
         }
     }
 };
@@ -142,6 +248,24 @@ export default {
     border: 1px dashed #000;
     cursor: move;
     position: absolute;
+    .frame-mask {
+        background-color: hsla(0,0%,100%,.4);
+        .top-mask {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+        }
+        .right-mask {
+            position: absolute;
+        }
+        .bottom-mask {
+            position: absolute;
+        }
+        .left-mask {
+            position: absolute;
+        }
+    }
     .frame-contact {
         position: absolute;
         width: 5px;

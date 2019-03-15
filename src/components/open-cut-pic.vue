@@ -4,7 +4,7 @@
             <button @click="rotate(-90)">逆时针</button>
             <button @click="rotate(90)">顺时针</button>
         </div>
-        <open-cut-pic-frame :width="200" :height="100"></open-cut-pic-frame>
+        <open-cut-pic-frame :width="200" :height="100" :limit="borderLimit"></open-cut-pic-frame>
     </div>
 </template>
 
@@ -76,6 +76,7 @@ export default {
             const isRotate = Math.abs(this._getRotate(this.imgEl) / 90) === 1;
             const verticalImg = this.imgEl.width / this.imgEl.height < 1;
             const isVertical = verticalImg ? verticalImg && !isRotate : verticalImg || isRotate;
+            const wrapperSize = this.$refs.wrapper.getBoundingClientRect();
             
             let top = 0;
             let left = 0;
@@ -85,8 +86,27 @@ export default {
             // 图片横着展示
             if (!verticalImg && !isRotate) {
                 // 原图片是横着的，并且没有旋转
-                top = (this.$refs.wrapper.getBoundingClientRect().height - this.imgEl.height) / 2;
-                width = this.$refs.wrapper.getBoundingClientRect().width;
+                top = (wrapperSize.height - this.imgEl.height) / 2;
+                width = this.imgEl.width;
+                height = this.imgEl.height;
+            }
+            else if (!verticalImg && isRotate) {
+                // 原图片是横着的，并且被旋转
+                left = (wrapperSize.width - this.imgEl.height) / 2;
+                width = this.imgEl.height;
+                height = this.imgEl.width;
+            }
+            // 图片竖着展示
+            else if (verticalImg && !isRotate) {
+                // 原图片是竖着的，并且没有旋转
+                left = (wrapperSize.width - this.imgEl.width) / 2;
+                width = this.imgEl.width;
+                height = this.imgEl.height;
+            }
+            else {
+                // 原图片是竖着的，并且被旋转
+                top = (wrapperSize.height - this.imgEl.width) / 2;
+                width = this.imgEl.height;
                 height = this.imgEl.width;
             }
 
