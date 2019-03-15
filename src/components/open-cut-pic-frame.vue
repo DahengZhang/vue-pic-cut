@@ -61,12 +61,11 @@ export default {
         return {
             oldPosition: {},
             oldFrameRect: {}, // 拖动之前选择框的dom信息
-            clickPosition: {},
-            touchPoint: null,
-            touchFuc: null
+            clickPosition: {}
         };
     },
     mounted() {
+        let touchFuc = null; // 根据被点击的元素选用的方法
         this.$refs.frameContainer.addEventListener('mousedown', e => {
             e.stopPropagation();
             this.oldFrameRect = this.$refs.frameContainer.getBoundingClientRect();
@@ -78,25 +77,25 @@ export default {
             this.clickPosition.left = e.offsetX || 0;
             // 根据被点击的元素选用方法
             if (this._hasClass(e.target, 'top-left-contact')) {
-                this.touchFuc = this._topLeft;
+                touchFuc = this._topLeft;
             }
             else if (this._hasClass(e.target, 'top-right-contact')) {
-                this.touchFuc = this._topRight;
+                touchFuc = this._topRight;
             }
             else if (this._hasClass(e.target, 'bottom-right-contact')) {
-                this.touchFuc = this._bottomRight;
+                touchFuc = this._bottomRight;
             }
             else if (this._hasClass(e.target, 'bottom-left-contact')) {
-                this.touchFuc = this._bottomLeft;
+                touchFuc = this._bottomLeft;
             }
             else {
-                this.touchFuc = this._positionFrame;
+                touchFuc = this._positionFrame;
             }
-            this._addMousemoveEvent(this.touchFuc);
+            this._addMousemoveEvent(touchFuc);
         });
         window.addEventListener('mouseup', e => {
             e.stopPropagation();
-            this._removeMousemoveEvent(this.touchFuc);
+            this._removeMousemoveEvent(touchFuc);
         });
     },
     methods: {
@@ -204,8 +203,6 @@ export default {
 <style lang="less">
 .component-open-cut-pic-frame {
     display: inline-block;
-    top: 100px;
-    left: 100px;
     border: 1px dashed #000;
     cursor: move;
     position: absolute;

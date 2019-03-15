@@ -28,7 +28,7 @@ export default {
             el.setAttribute('class', classList.join(' '));
         },
         _getRotate(el) {
-            const transform = window.getComputedStyle(el, null).getPropertyValue('transform');
+            const transform = window.getComputedStyle(el, null).getPropertyValue('transform') || 'none';
             if (transform === 'none') {
                 return 0;
             }
@@ -49,11 +49,14 @@ export default {
                 img.onerror = reject;
             });
         },
-        _createImage(src, className) {
-            const imgEl = document.createElement('img')
-            imgEl.src = src;
-            this._addClass(imgEl, className);
-            return imgEl;
+        async _createDom(tagName, className, src = '') {
+            const el = document.createElement(tagName);
+            if (tagName === 'img') {
+                await this._loadImage(src);
+                el.src = src;
+            }
+            this._addClass(el, className);
+            return el;
         }
     }
 };

@@ -4,7 +4,7 @@
             <button @click="rotate(-90)">逆时针</button>
             <button @click="rotate(90)">顺时针</button>
         </div>
-        <open-cut-pic-frame :width="200" :height="100" :limit="borderLimit"></open-cut-pic-frame>
+        <open-cut-pic-frame :width="width" :height="height" :defaultSize="defaultSize" :limit="borderLimit"></open-cut-pic-frame>
     </div>
 </template>
 
@@ -18,35 +18,51 @@ export default {
     props: {
         src: {
             type: String
+        },
+        width: {
+            type: Number
+        },
+        height: {
+            type: Number
         }
     },
     data() {
         return {
-            wrapperSize: {},
-            imageSize: {},
+            wrapperSize: {
+                width: 0,
+                height: 0
+            },
             imgEl: null,
-            borderLimit: {}
+            borderLimit: {
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0
+            },
+            defaultSize: {
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0
+            }
         };
     },
     async mounted() {
         // 获取外层容器尺寸
-        this.wrapperSize = this.$refs.wrapper.getBoundingClientRect();
-        // 加载需要裁剪的图片
-        this.imageSize = await this._loadImage(this.src);
+        this.wrapperSize.width = this.$refs.wrapper.getBoundingClientRect().width;
+        this.wrapperSize.height = this.$refs.wrapper.getBoundingClientRect().height;
         // 创建图片dom
-        this.imgEl = this._createImage(this.src, 'cut-pic-el');
+        this.imgEl = await this._createDom('img', 'cut-pic-el', this.src);
+        
         // 将图片加载到页面中
         this.$refs.wrapper.insertBefore(this.imgEl, this.$refs.wrapper.childNodes[0] || null);
         // 适配图片
         this._fitImage();
-        // 计算剪切边境
-        this._calcBorder();
     },
     methods: {
         rotate(angle) {
             this.imgEl.style.transform = `rotate(${this._getRotate(this.imgEl) + angle}deg)`;
             this._fitImage();
-            this._calcBorder();
         },
         _fitImage() {
             const isRotate = Math.abs(this._getRotate(this.imgEl) / 90) === 1;
@@ -69,51 +85,46 @@ export default {
             // top
             const top = (this.wrapperSize.height - this.imgEl.height) / 2;
             this.imgEl.style.top = top + 'px';
+            this._calcBorder();
         },
         _calcBorder() {
             const isRotate = Math.abs(this._getRotate(this.imgEl) / 90) === 1;
             const verticalImg = this.imgEl.width / this.imgEl.height < 1;
             const isVertical = verticalImg ? verticalImg && !isRotate : verticalImg || isRotate;
             const wrapperSize = this.$refs.wrapper.getBoundingClientRect();
-            
-            let top = 0;
-            let left = 0;
-            let width = 0;
-            let height = 0;
 
             // 图片横着展示
             if (!verticalImg && !isRotate) {
                 // 原图片是横着的，并且没有旋转
-                top = (wrapperSize.height - this.imgEl.height) / 2;
-                width = this.imgEl.width;
-                height = this.imgEl.height;
+                this.borderLimit.top = this.borderLimit.bottom = (wrapperSize.height - this.imgEl.height) / 2;
             }
             else if (!verticalImg && isRotate) {
                 // 原图片是横着的，并且被旋转
-                left = (wrapperSize.width - this.imgEl.height) / 2;
-                width = this.imgEl.height;
-                height = this.imgEl.width;
+                this.borderLimit.left = this.borderLimit.right = (wrapperSize.width - this.imgEl.height) / 2;
             }
             // 图片竖着展示
             else if (verticalImg && !isRotate) {
                 // 原图片是竖着的，并且没有旋转
-                left = (wrapperSize.width - this.imgEl.width) / 2;
-                width = this.imgEl.width;
-                height = this.imgEl.height;
+                this.borderLimit.left = this.borderLimit.right = (wrapperSize.width - this.imgEl.width) / 2;
             }
             else {
                 // 原图片是竖着的，并且被旋转
-                top = (wrapperSize.height - this.imgEl.width) / 2;
-                width = this.imgEl.height;
-                height = this.imgEl.width;
+                this.borderLimit.top = this.borderLimit.bottom = (wrapperSize.height - this.imgEl.width) / 2;
             }
 
-            this.borderLimit = {
-                top,
-                left,
-                width,
-                height
+            this._initFramePosition(isRotate ? this.imgEl.height : this.imgEl.width, isRotate ? this.imgEl.width : this.imgEl.height);
+        },
+        _initFramePosition(imgWidth, imgHeight) {
+            const frameScale = imgWidth / imgHeight; // 选区框宽高比
+            const cutScale = this.width / this.height; // 裁剪区域宽高比
+
+            if (frameScale > cutScale) { // 竖着剪裁
+                this.defaultSize.left = this.defaultSize.right = this.width * imgHeight / this.height / 2;
             }
+            else { // 横着剪裁
+                this.defaultSize.top = this.defaultSize.bottom = imgHeight * this.width / imgWidth / 2;
+            }
+            console.log(this.defaultSize)
         }
     },
     components: {
