@@ -41,8 +41,6 @@ export default {
         this._fitImage();
         // 计算剪切边境
         this._calcBorder();
-
-        console.log(this.borderLimit)
     },
     methods: {
         rotate(angle) {

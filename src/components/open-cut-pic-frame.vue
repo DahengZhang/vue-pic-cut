@@ -60,7 +60,7 @@ export default {
     data() {
         return {
             oldPosition: {},
-            oldFrameRect: {},
+            oldFrameRect: {}, // 拖动之前选择框的dom信息
             clickPosition: {},
             touchPoint: null,
             touchFuc: null
@@ -70,7 +70,7 @@ export default {
         this.$refs.frameContainer.addEventListener('mousedown', e => {
             e.stopPropagation();
             this.oldFrameRect = this.$refs.frameContainer.getBoundingClientRect();
-            console.log(this.oldFrameRect)
+            // 获取被点击之前元素的坐标，以便于计算鼠标按下后位移的位置
             this.oldPosition.top = e.clientY;
             this.oldPosition.left = e.clientX;
             // 触点相对于被点击元素的位置
@@ -100,24 +100,19 @@ export default {
         });
     },
     methods: {
-        _getPosition(e) {
+        _getPointPosition(e) {
             // 当前出点相对于页面的坐标，加上浏览器滚动条滚动的距离，减去限制组建相对于页面的位置，减去触点相对于被点击元素的位置
             const top = e.clientY + document.documentElement.scrollTop - this.$parent.$el.offsetTop - this.clickPosition.top;
             const left = e.clientX + document.documentElement.scrollLeft - this.$parent.$el.offsetLeft - this.clickPosition.left;
             return {top, left};
         },
-        _correctPosition(el) {
-            const position = el.getBoundingClientRect();
-            const top = position.top + document.documentElement.scrollTop - this.$parent.$el.offsetTop;
-            const left = position.left + document.documentElement.scrollLeft - this.$parent.$el.offsetLeft;
-            return {top, left};
-        },
         _positionFrame(e) {
-            const {top, left} = this._getPosition(e);
+            const {top, left} = this._getPointPosition(e);
 
             const {needCorrect, correctedData} = this._positionCorrect(top, left, this.oldFrameRect.width, this.oldFrameRect.height);
 
             if (needCorrect) {
+                console.log('correctedData', correctedData)
                 this.$refs.frameContainer.style.top = correctedData.top + 'px';
                 this.$refs.frameContainer.style.left = correctedData.left + 'px';
                 return;
@@ -127,23 +122,10 @@ export default {
             this.$refs.frameContainer.style.left = left + 'px';
         },
         _topLeft(e) {
-            let top = this._getPosition(e).top;
-            let left = this._getPosition(e).left;
+            let top = this._getPointPosition(e).top;
+            let left = this._getPointPosition(e).left;
             let width = this.oldFrameRect.width + this.oldPosition.left - e.clientX;
             let height = this.oldFrameRect.height + this.oldPosition.top - e.clientY;
-
-            const {needCorrect, correctedData} = this._sizeCorrect(
-                                                    this._correctPosition(this.$refs.frameContainer).top,
-                                                    this._correctPosition(this.$refs.frameContainer).left,
-                                                    width, height
-                                                );
-
-            if (needCorrect) {
-                top = correctedData.top;
-                left = correctedData.left;
-                width = correctedData.width;
-                height = correctedData.height;
-            }
 
             if (width >= this.minWdith) {
                 this.$refs.frameContainer.style.width = width + 'px';
@@ -161,25 +143,20 @@ export default {
             const height = this.oldFrameRect.height + this.oldPosition.top - e.clientY;
             if (height >= this.minHeight) {
                 this.$refs.frameContainer.style.height = height + 'px';
-                this.$refs.frameContainer.style.top = this._getPosition(e).top + 'px';
+                this.$refs.frameContainer.style.top = this._getPointPosition(e).top + 'px';
             }
         },
         _bottomRight(e) {
             let width = this.oldFrameRect.width + e.clientX - this.oldPosition.left;
             let height = this.oldFrameRect.height + e.clientY - this.oldPosition.top;
-            
-            const {needCorrect, correctedData} = this._sizeCorrect(
-                                                    this._correctPosition(this.$refs.frameContainer).top,
-                                                    this._correctPosition(this.$refs.frameContainer).left,
-                                                    width, height
-                                                );
-            if (needCorrect) {
-                width = correctedData.width;
-                height = correctedData.height;
+
+            if (false) {
+                width = width > this.minWdith ? width : this.minWdith;
+                height = height > this.minHeight ? height : this.minHeight;
             }
 
-            this.$refs.frameContainer.style.width = (width > this.minWdith ? width : this.minWdith) + 'px';
-            this.$refs.frameContainer.style.height = (height > this.minHeight ? height : this.minHeight) + 'px';
+            this.$refs.frameContainer.style.width = width + 'px';
+            this.$refs.frameContainer.style.height = height + 'px';
         },
         _bottomLeft(e) {
             this.$refs.frameContainer.style.height = this.oldFrameRect.height + e.clientY - this.oldPosition.top + 'px';
@@ -187,7 +164,7 @@ export default {
             const width = this.oldFrameRect.width + this.oldPosition.left - e.clientX;
             if (width >= this.minWdith) {
                 this.$refs.frameContainer.style.width = (width >= this.minWdith ? width : this.minWdith) + 'px';
-                this.$refs.frameContainer.style.left = this._getPosition(e).left + 'px';
+                this.$refs.frameContainer.style.left = this._getPointPosition(e).left + 'px';
             }
         },
         _positionCorrect(top, left, width, height) {
@@ -195,6 +172,11 @@ export default {
             let correctedData = {
                 left, top, width, height
             }
+            
+            // 宽度矫正
+            width < this.limit.width && (width = this.limit.width, needCorrect = true);
+            // 高度矫正
+            height < this.limit.height && (height = this.limit.height, needCorrect = true);
 
             if (this.limit.top > top) { // 上方边界矫正
                 needCorrect = true;
@@ -211,27 +193,6 @@ export default {
             if (this.limit.top + this.limit.height < top + height) { // 底侧边界矫正
                 needCorrect = true;
                 correctedData.top = this.limit.height + this.limit.top - height;
-            }
-
-            return {needCorrect, correctedData};
-        },
-        _sizeCorrect(top, left, width, height) {
-            let needCorrect = false;
-            let correctedData = {
-                top, left, width, height
-            }
-
-            if (this.limit.top > top) {
-                needCorrect = true;
-                correctedData.top = this.limit.top;
-            }
-            if (this.limit.left + this.limit.width < left + width) { // 右侧边界矫正
-                needCorrect = true;
-                correctedData.width = this.limit.width - left;
-            }
-            if (this.limit.height < top + height - this.limit.top) { // 底侧边界矫正
-                needCorrect = true;
-                correctedData.height = this.limit.height - top + this.limit.top;
             }
 
             return {needCorrect, correctedData};
