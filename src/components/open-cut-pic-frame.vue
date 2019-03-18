@@ -1,14 +1,46 @@
 <template>
-    <div class="component-open-cut-pic-frame" ref="frameContainer"
-        :style="{'width': `${width}px`, 'height': `${height}px`, 'min-width': `${minWdith}px`, 'min-height': `${minHeight}px`}">
-        <div class="frame-mask top-mask"></div>
-        <div class="frame-mask right-mask"></div>
-        <div class="frame-mask bottom-mask"></div>
-        <div class="frame-mask left-mask"></div>
-        <div class="frame-contact top-left-contact"></div>
-        <div class="frame-contact top-right-contact"></div>
-        <div class="frame-contact bottom-right-contact"></div>
-        <div class="frame-contact bottom-left-contact"></div>
+    <div class="component-open-cut-pic-frame" ref="container"
+    :style="{
+        'top': `${limit.top}px`,
+        'left': `${limit.left}px`,
+        'width': `${limit.width}px`,
+        'height': `${limit.height}px`,
+    }">
+        <div class="frame-mask top-mask" 
+        :style="{
+            'height': `${value.top}px`
+        }"></div>
+        <div class="frame-mask right-mask"
+        :style="{
+            'top': `${value.top}px`,
+            'left': `${value.left + value.width}px`,
+            'width': `${limit.width - value.left - value.width}px`,
+            'height': `${value.height}px`
+        }"></div>
+        <div class="frame-mask bottom-mask"
+        :style="{
+            'height': `${limit.height - value.height - value.top}px`
+        }"></div>
+        <div class="frame-mask left-mask"
+        :style="{
+            'top': `${value.top}px`,
+            'width': `${value.left}px`,
+            'height': `${value.height}px`
+        }"></div>
+        <div class="select-frame"
+            ref="frameEl"
+            :style="{
+                'top': `${value.top}px`,
+                'left': `${value.left}px`,
+                'width': `${value.width}px`,
+                'height': `${value.height}px`
+            }">
+            {{limit}}
+            <div class="frame-contact top-left-contact"></div>
+            <div class="frame-contact top-right-contact"></div>
+            <div class="frame-contact bottom-right-contact"></div>
+            <div class="frame-contact bottom-left-contact"></div>
+        </div>
     </div>
 </template>
 
@@ -19,15 +51,15 @@ export default {
     name: 'OpenCutPicFrame',
     mixins: [Mixin],
     props: {
-        width: {
+        value: { // 选取框尺寸
+            type: Object,
+            required: true
+        },
+        scale: { // 剪裁区域比例
             type: Number,
             required: true
         },
-        height: {
-            type: Number,
-            required: true
-        },
-        limit: {
+        limit: { // 选取框边界限制
             type: Object,
             default: () => {
                 return {
@@ -39,57 +71,43 @@ export default {
             }
         }
     },
-    computed: {
-        minWdith() {
-            if (this.width > this.height) {
-                return 50 * this.width / this.height;
-            }
-            else {
-                return 50;
-            }
-        },
-        minHeight() {
-            if (this.height > this.width) {
-                return 50 * this.height / this.width;
-            }
-            else {
-                return 50;
-            }
-        }
-    },
     data() {
         return {
-            oldPosition: {},
-            oldFrameRect: {}, // 拖动之前选择框的dom信息
-            clickPosition: {}
-        };
+            clickPosition: {
+                top: 0,
+                left: 0
+            },
+            thisElPosition: null
+        }
     },
     mounted() {
-        let touchFuc = null; // 根据被点击的元素选用的方法
-        this.$refs.frameContainer.addEventListener('mousedown', e => {
+        let touchFuc = null;
+        this.$refs.frameEl.addEventListener('mousedown', e => {
             e.stopPropagation();
-            this.oldFrameRect = this.$refs.frameContainer.getBoundingClientRect();
-            // 获取被点击之前元素的坐标，以便于计算鼠标按下后位移的位置
-            this.oldPosition.top = e.clientY;
-            this.oldPosition.left = e.clientX;
+            if (!this.thisElPosition) {
+                const tp = this._getPositionPoint(this.$refs.container);
+                this.thisElPosition = {
+                    top: tp.top,
+                    left: tp.left
+                }
+            }
             // 触点相对于被点击元素的位置
-            this.clickPosition.top = e.offsetY || 0;
-            this.clickPosition.left = e.offsetX || 0;
-            // 根据被点击的元素选用方法
+            this.clickPosition.top = e.offsetY;
+            this.clickPosition.left = e.offsetX;
             if (this._hasClass(e.target, 'top-left-contact')) {
-                touchFuc = this._topLeft;
+                touchFuc = this._dragTopLeft;
             }
             else if (this._hasClass(e.target, 'top-right-contact')) {
-                touchFuc = this._topRight;
+                touchFuc = this._dragTopRight;
             }
             else if (this._hasClass(e.target, 'bottom-right-contact')) {
-                touchFuc = this._bottomRight;
+                touchFuc = this._dragBottomRight;
             }
             else if (this._hasClass(e.target, 'bottom-left-contact')) {
-                touchFuc = this._bottomLeft;
+                touchFuc = this._dragBottomLeft;
             }
             else {
-                touchFuc = this._positionFrame;
+                touchFuc = this._moveFrame;
             }
             this._addMousemoveEvent(touchFuc);
         });
@@ -98,103 +116,183 @@ export default {
             this._removeMousemoveEvent(touchFuc);
         });
     },
+    watch: {
+        limit: {
+            handler: function() {
+                this.thisElPosition = null;
+            },
+            deep: true
+        }
+    },
     methods: {
-        _getPointPosition(e) {
-            // 当前出点相对于页面的坐标，加上浏览器滚动条滚动的距离，减去限制组建相对于页面的位置，减去触点相对于被点击元素的位置
-            const top = e.clientY + document.documentElement.scrollTop - this.$parent.$el.offsetTop - this.clickPosition.top;
-            const left = e.clientX + document.documentElement.scrollLeft - this.$parent.$el.offsetLeft - this.clickPosition.left;
+        _getPosition(e) {
+            // 当前出点相对于浏览器的坐标，加上浏览器滚动条滚动的距离，减去限制组建相对于页面的位置，减去触点相对于被点击元素的位置
+            let top = e.clientY + document.documentElement.scrollTop - this.thisElPosition.top - this.clickPosition.top;
+            let left = e.clientX + document.documentElement.scrollLeft - this.thisElPosition.left - this.clickPosition.left;
             return {top, left};
         },
-        _positionFrame(e) {
-            const {top, left} = this._getPointPosition(e);
+        _moveFrame(e) {
+            let {top, left} = this._getPosition(e);
+            let width = this.value.width;
+            let height = this.value.height;
 
-            const {needCorrect, correctedData} = this._positionCorrect(top, left, this.oldFrameRect.width, this.oldFrameRect.height);
+            const needCerrect = this._checkLimit(top, left, width, height);
 
-            if (needCorrect) {
-                console.log('correctedData', correctedData)
-                this.$refs.frameContainer.style.top = correctedData.top + 'px';
-                this.$refs.frameContainer.style.left = correctedData.left + 'px';
-                return;
+            if (needCerrect.top) {
+                top = 0;
+            }
+            if (needCerrect.right) {
+                left = this.limit.width - width;
+            }
+            if (needCerrect.bottom) {
+                top = this.limit.height - height;
+            }
+            if (needCerrect.left) {
+                left = 0;
             }
 
-            this.$refs.frameContainer.style.top = top + 'px';
-            this.$refs.frameContainer.style.left = left + 'px';
+            this.$emit('input', {top, left, width, height});
         },
-        _topLeft(e) {
-            let top = this._getPointPosition(e).top;
-            let left = this._getPointPosition(e).left;
-            let width = this.oldFrameRect.width + this.oldPosition.left - e.clientX;
-            let height = this.oldFrameRect.height + this.oldPosition.top - e.clientY;
+        _dragTopLeft(e) {
+            let {top, left} = this._getPosition(e);
+            let width = this.value.left - left + this.value.width;
+            let height = width / this.scale;
 
-            if (width >= this.minWdith) {
-                this.$refs.frameContainer.style.width = width + 'px';
-                this.$refs.frameContainer.style.left = left + 'px';
+            if (top < this.value.top) {
+                height = this.value.top - top + this.value.height;
+                width = height * this.scale;
             }
+            // if (left < this.value.left) {
+            //     width = this.value.left - left + this.value.width;
+            //     height = width / this.scale;
+            // }
+
+            const needCerrect = this._checkLimit(top, left, width, height);
+            if (needCerrect.top) {
+                top = 0;
+                height = this.value.top + this.value.height;
+            }
+            if (needCerrect.right) {}
+            if (needCerrect.bottom) {
+                // height = this.limit.height - top;
+                // width = height * this.scale;
+                // left = this.value.left;
+            }
+            if (needCerrect.left) {
+                left = 0;
+                width = this.value.left + this.value.width;
+            }
+
+            this.$emit('input', {top, left, width, height});
+        },
+        _dragTopRight(e) {
+            let {top, left} = this._getPosition(e);
             
-            if (height >= this.minHeight) {
-                this.$refs.frameContainer.style.height = height + 'px';
-                this.$refs.frameContainer.style.top = top + 'px';
+            let width = left - this.value.left;
+            let height = this.value.top - top + this.value.height;
+
+            // const needWidth = left - this.value.left;
+            // const needHeight = this.value.top - top + this.value.height;
+
+            height = width / this.scale;
+            top = this.value.top - height + this.value.height;
+            // if (needHeight >= this.value.height) {
+            //     console.log('90-0987')
+            //     height = top - this.value.top + this.value.height;
+            //     width = height * this.scale;
+            // }
+            // else if (needHeight < this.value.height) {
+            //     console.log('pppp')
+            // }
+
+            const needCerrect = this._checkLimit(top, this.value.left, width, height);
+            if (needCerrect.top) {
+                top = 0;
+                height = this.value.top + this.value.height;
+                width = height * this.scale;
             }
+            if (needCerrect.bottom) {
+                // height = this.limit.height - top;
+            }
+            if (needCerrect.right) {
+                width = this.limit.width - this.value.left;
+            }
+
+            this.$emit('input', {top, left: this.value.left, width, height});
         },
-        _topRight(e) {
-            this.$refs.frameContainer.style.width = this.oldFrameRect.width + e.clientX - this.oldPosition.left + 'px';
+        _dragBottomRight(e) {
+            let {top, left} = this._getPosition(e);
+            let width = left - this.value.left;
+            let height = width / this.scale;
 
-            const height = this.oldFrameRect.height + this.oldPosition.top - e.clientY;
-            if (height >= this.minHeight) {
-                this.$refs.frameContainer.style.height = height + 'px';
-                this.$refs.frameContainer.style.top = this._getPointPosition(e).top + 'px';
+            if (top > this.value.top + height) {
+                height = top - this.value.top;
+                width = height * this.scale;
             }
+
+            const needCerrect = this._checkLimit(this.value.top, this.value.left, width, height);
+            if (needCerrect.right) {
+                width = this.limit.width - this.value.left;
+            }
+            if (needCerrect.bottom) {
+                height = this.limit.height - this.value.top;
+            }
+
+            if (needCerrect.right) {
+                height = width / this.scale;
+            }
+            else {
+                width = height * this.scale;
+            }
+
+            this.$emit('input', {top: this.value.top, left: this.value.left, width, height});
         },
-        _bottomRight(e) {
-            let width = this.oldFrameRect.width + e.clientX - this.oldPosition.left;
-            let height = this.oldFrameRect.height + e.clientY - this.oldPosition.top;
+        _dragBottomLeft(e) {
+            let {top, left} = this._getPosition(e);
+            let width = this.value.left - left + this.value.width;
+            let height = top - this.value.top;
 
-            if (false) {
-                width = width > this.minWdith ? width : this.minWdith;
-                height = height > this.minHeight ? height : this.minHeight;
+            const needCerrect = this._checkLimit(this.value.top, left, width, height);
+            if (needCerrect.left) {
+                left = 0;
+                width = this.value.left + this.value.width;
+            }
+            if (needCerrect.bottom) {
+                height = this.limit.height - this.value.top;
             }
 
-            this.$refs.frameContainer.style.width = width + 'px';
-            this.$refs.frameContainer.style.height = height + 'px';
+            this.$emit('input', {top: this.value.top, left, width, height});
         },
-        _bottomLeft(e) {
-            this.$refs.frameContainer.style.height = this.oldFrameRect.height + e.clientY - this.oldPosition.top + 'px';
+        _checkLimit(top, left, width, height) {
+            let needCerrect = {
+                has: false,
+                top: false,
+                right: false,
+                bottom: false,
+                left: false
+            };
 
-            const width = this.oldFrameRect.width + this.oldPosition.left - e.clientX;
-            if (width >= this.minWdith) {
-                this.$refs.frameContainer.style.width = (width >= this.minWdith ? width : this.minWdith) + 'px';
-                this.$refs.frameContainer.style.left = this._getPointPosition(e).left + 'px';
+            if (top < 0) {
+                needCerrect.has = true;
+                needCerrect.top = true;
             }
+            if (left + width > this.limit.width) {
+                needCerrect.has = true;
+                needCerrect.right = true;
+            }
+            if (top + height > this.limit.height) {
+                needCerrect.has = true;
+                needCerrect.bottom = true;
+            }
+            if (left < 0) {
+                needCerrect.has = true;
+                needCerrect.left = true;
+            }
+
+            return needCerrect;
         },
-        _positionCorrect(top, left, width, height) {
-            let needCorrect = false;
-            let correctedData = {
-                left, top, width, height
-            }
-            
-            // 宽度矫正
-            width < this.limit.width && (width = this.limit.width, needCorrect = true);
-            // 高度矫正
-            height < this.limit.height && (height = this.limit.height, needCorrect = true);
-
-            if (this.limit.top > top) { // 上方边界矫正
-                needCorrect = true;
-                correctedData.top = this.limit.top;
-            }
-            if (this.limit.left > left) { // 左侧边界矫正
-                needCorrect = true;
-                correctedData.left = this.limit.left;
-            }
-            if (this.limit.left + this.limit.width < left + width) { // 右侧边界矫正
-                needCorrect = true;
-                correctedData.left = this.limit.width + this.limit.left - width;
-            }
-            if (this.limit.top + this.limit.height < top + height) { // 底侧边界矫正
-                needCorrect = true;
-                correctedData.top = this.limit.height + this.limit.top - height;
-            }
-
-            return {needCorrect, correctedData};
+        _checkBase(pointTop, pointLeft, width, height) {
+            pointTop > this.value.top
         }
     }
 };
@@ -202,53 +300,56 @@ export default {
 
 <style lang="less">
 .component-open-cut-pic-frame {
-    display: inline-block;
-    border: 1px dashed #000;
-    cursor: move;
     position: absolute;
     .frame-mask {
-        background-color: hsla(0,0%,100%,.4);
-        .top-mask {
-            position: absolute;
+        position: absolute;
+        background-color: hsla(0, 0%, 100%, .4);
+        &.top-mask {
             top: 0;
-            left: 0;
             width: 100%;
         }
-        .right-mask {
-            position: absolute;
+        &.right-mask {
+            right: 0;
         }
-        .bottom-mask {
-            position: absolute;
+        &.bottom-mask {
+            bottom: 0;
+            width: 100%;
         }
-        .left-mask {
-            position: absolute;
+        &.left-mask {
+            left: 0;
         }
     }
-    .frame-contact {
+    .select-frame {
         position: absolute;
-        width: 5px;
-        height: 5px;
-        background-color: rgba(0,0,0,.5);
-        transform: translate(-50%, -50%);
-        &.top-left-contact {
-            top: 0;
-            left: 0;
-            cursor: nw-resize;
-        }
-        &.top-right-contact {
-            top: 0;
-            left: 100%;
-            cursor: ne-resize;
-        }
-        &.bottom-right-contact {
-            top: 100%;
-            left: 100%;
-            cursor: se-resize;
-        }
-        &.bottom-left-contact {
-            top: 100%;
-            left: 0;
-            cursor: sw-resize;
+        border: 1px dashed #000;
+        cursor: move;
+        box-sizing: border-box;
+        .frame-contact {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            background-color: rgba(0, 0, 0, .5);
+            transform: translate(-50%, -50%);
+            &.top-left-contact {
+                top: 0;
+                left: 0;
+                cursor: nw-resize;
+            }
+            &.top-right-contact {
+                top: 0;
+                left: 100%;
+                cursor: ne-resize;
+            }
+            &.bottom-right-contact {
+                top: 100%;
+                left: 100%;
+                cursor: se-resize;
+            }
+            &.bottom-left-contact {
+                top: 100%;
+                left: 0;
+                cursor: sw-resize;
+            }
         }
     }
 }

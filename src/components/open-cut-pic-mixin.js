@@ -57,6 +57,17 @@ export default {
             }
             this._addClass(el, className);
             return el;
+        },
+        _getPositionPoint(el) {
+            let top = el.offsetTop;
+            let left = el.offsetLeft;
+
+            while (el = el.offsetParent) {
+                top += el.offsetTop;
+                left += el.offsetLeft;
+            }
+
+            return {top, left}
         }
     }
 };

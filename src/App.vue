@@ -2,10 +2,10 @@
   <div id="app">
     This is App
     <p>水平</p>
-    <open-cut-pic class="open-cut-pic-el" :src="'/images/hanfu002.jpeg'" :width="200" :height="100"></open-cut-pic>
+    <open-cut-pic v-model="option" class="open-cut-pic-el" :src="'/images/hanfu002.jpeg'" :width="100" :height="200"></open-cut-pic>
     <p>竖直</p>
-    <open-cut-pic class="open-cut-pic-el" :src="'/images/hanfu003.jpeg'" :width="200" :height="100"></open-cut-pic>
-    <p>end</p>
+    <!-- <open-cut-pic v-model="option" class="open-cut-pic-el" :src="'/images/hanfu003.jpeg'" :width="100" :height="200"></open-cut-pic> -->
+    <p>{{option}}</p>
   </div>
 </template>
 
@@ -16,6 +16,7 @@ export default {
     name: 'app',
     data() {
         return {
+            option: {},
             src: '/images/hanfu002.jpeg'
         };
     },
